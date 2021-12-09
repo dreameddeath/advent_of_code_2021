@@ -19,7 +19,7 @@
     },
     "include": [
         "./**/*.ts"
-, "day_2_part_2.ts.bak", "day_2_part_1.ts.bak", "day_1_part_2.ts.bak", "day_3_part_1.ts.bak", "day_3_part_2.ts.bak", "day_4_part_1.ts.bak", "day_4_part_2.ts.bak", "day_9_part_1.ts.bak", "day_5_part_1.ts.bak", "day_9_part_2.ts.bak", "day_6_part_1.ts.bak", "day_7_part_1.ts.bak"    ],
+, "day_2_part_2.ts.bak", "day_2_part_1.ts.bak", "day_1_part_2.ts.bak", "day_3_part_1.ts.bak", "day_3_part_2.ts.bak", "day_4_part_1.ts.bak", "day_4_part_2.ts.bak", "day_9_part_1.ts.bak", "day_5_part_1.ts.bak", "day_9_part_2.ts.bak", "day_6_part_1.ts.bak", "day_7_part_1.ts.bak", "day_7_part_2.ts.bak", "day_8_part_1.ts.bak"    ],
     "exclude": [
         "node_modules",
         "dist"
