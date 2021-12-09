@@ -24,12 +24,7 @@ const parts = lines.map(line => line.split("|")).map(([source, output]) => <Line
 
 
 type DigitMap = { [key: string]: number }
-const refList = {
-    0: new Set(["a", "b", "c", "e", "f", "g"]),
-    1: new Set(["c", "f"]),
-    2: new Set(["a", "c", "d", "e", "g"]),
-    3: new Set(["a", "c", "d", "f", "g"])
-}
+
 
 function contains(digit: Digit, ref: Digit): boolean {
     return [...ref.values()].every(seg => digit.has(seg))
