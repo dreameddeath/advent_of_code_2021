@@ -3,7 +3,7 @@ const testData = ``
 
 
 function puzzle(lines: string[]): void {
-
+    
 }
 
-run(12, testData, [Type.TEST], puzzle)
+run(13, testData, [Type.TEST/*, Type.RUN*/], puzzle)

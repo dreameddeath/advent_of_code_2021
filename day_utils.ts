@@ -12,7 +12,14 @@ export function getData(day: number, test: Type, testData: string): string[] {
 }
 
 export function run(day: number, testData: string, types: Type[], fct: (lines: string[]) => void): void {
-    types.forEach(type => fct(getData(day, type, testData)))
+    types.forEach(type => {
+        const name = Type[type];
+        console.log(`Running ${name}`)
+        const start = new Date()
+        fct(getData(day, type, testData))
+        const duration = (new Date()).getTime() - start.getTime()
+        console.log(`Done ${name} in ${duration} ms`)
+    })
 }
 
 export function* generator(max: number): Generator<number> {
