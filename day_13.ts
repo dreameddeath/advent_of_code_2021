@@ -1,9 +1,9 @@
-import { run, Type } from "./day_utils"
+import { Part, run, Type } from "./day_utils"
 const testData = ``
 
 
-function puzzle(lines: string[]): void {
-    
+function puzzle(lines: string[], part: Part): void {
+
 }
 
-run(13, testData, [Type.TEST/*, Type.RUN*/], puzzle)
+run(13, testData, [Type.TEST/*, Type.RUN*/], puzzle, [Part.PART_1/*,Part.PART_2*/])

@@ -1,4 +1,4 @@
-import { getData } from "day_utils"
+import { getData, Type } from "../day_utils"
 const testData = `[({(<(())[]>[[{[]{<()<>>
 [(()[<>])]({[<{<<[]>>(
 {([(<{}[<>[]}>{[]{[(<()>
@@ -9,7 +9,7 @@ const testData = `[({(<(())[]>[[{[]{<()<>>
 [<(<(<(<{}))><([]([]()
 <{([([[(<>()){}]>(<<{{
 <{([{{}}[<[[[<>{}]]]>[]]`
-const lines = getData(10,false,testData)
+const lines = getData(10, Type.RUN, testData)
 
 
 const linesOfChars = lines
@@ -57,6 +57,6 @@ const incompleteLines = parsingResults.filter(it => it.issueChar === undefined)
 const incompleteScores = incompleteLines.map(
     line => line.stack.reverse().reduce((lineScore, char) => lineScore * 5 + closureDef[char].pointsToComplete, 0)
 )
-incompleteScores.sort((a,b)=>a-b)
+incompleteScores.sort((a, b) => a - b)
 
-console.log(`Result : ${issuesScore} / ${incompleteScores[Math.floor(incompleteScores.length/2)]}`)
+console.log(`Result : ${issuesScore} / ${incompleteScores[Math.floor(incompleteScores.length / 2)]}`)
