@@ -7,9 +7,9 @@ export enum Type {
 }
 
 export enum Part {
-    ALL,
-    PART_1,
-    PART_2
+    ALL = "BOTH",
+    PART_1 = "PART 1",
+    PART_2 = "PART 2"
 }
 
 
@@ -19,16 +19,14 @@ export function getData(day: number, test: Type, testData: string): string[] {
 }
 
 export function run(day: number, testData: string, types: Type[], fct: (lines: string[], part: Part) => void, parts: Part[] = [Part.ALL]): void {
-
     parts.forEach(part => {
-        const partName = Part[part]
         types.forEach(type => {
             const name = Type[type];
-            console.log(`Running ${name} for part ${partName}`)
+            console.log(`[${name}][${part}] Running`)
             const start = new Date()
             fct(getData(day, type, testData), part)
             const duration = (new Date()).getTime() - start.getTime()
-            console.log(`Done ${name} for par ${partName} in ${duration} ms`)
+            console.log(`[${name}][${part}] Done in ${duration} ms`)
         })
     })
 }
