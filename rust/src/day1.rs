@@ -1,29 +1,14 @@
-use crate::utils::{read_lines, Dataset, Part};
+use crate::utils::{Part};
 
-type ParseResult = u16;
-pub fn parse_line(line: &String) -> Option<ParseResult> {
-    let parse_res = line.parse::<u16>();
-    return match parse_res {
-        Ok(val) => Some(val),
-        Err(_) => None,
-    };
+pub fn parse(lines:&Vec<String>) -> Vec<u16> {
+    return lines.into_iter()
+                .filter_map(|l| l.parse::<u16>().ok())
+                .collect()
+        
 }
 
-pub fn parse(data_set: &Dataset) -> Vec<u16> {
-    let l = read_lines(1, data_set);
-    return match l {
-        Some(lines) => lines
-            .filter_map(|l| match l {
-                Ok(line) => parse_line(&line),
-                Err(_) => None,
-            })
-            .collect(),
-        None => vec![],
-    };
-}
-
-pub fn puzzle(part: &Part, data_set: &Dataset) {
-    let values = parse(data_set);
+pub fn puzzle(part: &Part, lines: &Vec<String>) {
+    let values = parse(lines);
 
     match part {
         Part::Part1 => {

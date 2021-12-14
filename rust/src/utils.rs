@@ -10,7 +10,7 @@ where
     Ok(io::BufReader::new(file).lines())
 }
 
-pub fn read_lines(day: i8, is_test: &Dataset) -> Option<Lines<BufReader<File>>> {
+pub fn read_lines(day: &u8, is_test: &Dataset) -> Option<Lines<BufReader<File>>> {
     let f = read_lines_internal(format!(
         "./data/day_{}{}.txt",
         day,
@@ -41,21 +41,50 @@ pub enum Dataset {
     Real,
 }
 
-pub fn run<F: Fn(&Part, &Dataset)>(fct: &F, part: &Part, dataset: &Dataset) {
+#[allow(dead_code)]
+pub enum Active {
+    True,
+    False
+}
+
+pub fn run<F: Fn(&Part, &Vec<String>)>(day: &u8, fct: &F, part: &Part, data_set:&Dataset,lines: &Vec<String>) {
     let start = Instant::now();
-    println!("[{:?}][{:?}] Starting ", part, dataset);
-    fct(part, dataset);
+    println!("[Day {}][{:?}][{:?}] Starting ", day, part, data_set);
+    fct(part,lines);
     println!(
-        "[{:?}][{:?}] Duration {} ms ",
+        "[Day {}][{:?}][{:?}] Duration {} ms ",
+        day,
         part,
-        dataset,
+        data_set,
         start.elapsed().as_millis()
     )
 }
 
-pub fn run_all<F: Fn(&Part, &Dataset)>(fct: &F) {
-    run(fct, &Part::Part1, &Dataset::Test);
-    run(fct, &Part::Part1, &Dataset::Real);
-    run(fct, &Part::Part2, &Dataset::Test);
-    run(fct, &Part::Part2, &Dataset::Real);
+pub fn to_lines(day: &u8, data_set: &Dataset) -> Vec<String> {
+    return read_lines(day, data_set)
+        .map(|lines| lines.filter_map(|l| l.ok()).collect())
+        .unwrap_or(vec![]);
+}
+
+pub fn run_all<F: Fn(&Part, &Vec<String>)>(day: &u8, fct: &F, active: &Active) {
+    if let Active::False = active  {
+        return;
+    }
+
+    let test_lines = to_lines(day, &Dataset::Test);
+    let real_lines = to_lines(day, &Dataset::Real);
+    run(day, fct, &Part::Part1, &Dataset::Test, &test_lines);
+    println!("");
+    run(day, fct, &Part::Part1, &Dataset::Real, &real_lines);
+    println!("");
+    run(day, fct, &Part::Part2, &Dataset::Test, &test_lines);
+    println!("");
+    run(day, fct, &Part::Part2, &Dataset::Real, &real_lines);
+}
+
+#[allow(dead_code)]
+pub fn merge<A, B, C>(first: Option<A>, second: Option<B>, merger: fn(A, B) -> C) -> Option<C> {
+    let first = first?;
+    let second = second?;
+    Some(merger(first, second))
 }
