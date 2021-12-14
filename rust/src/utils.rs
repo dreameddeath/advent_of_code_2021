@@ -44,13 +44,13 @@ pub enum Dataset {
 #[allow(dead_code)]
 pub enum Active {
     True,
-    False
+    False,
 }
 
-pub fn run<F: Fn(&Part, &Vec<String>)>(day: &u8, fct: &F, part: &Part, data_set:&Dataset,lines: &Vec<String>) {
+pub fn run<F: Fn(&Part, &Vec<String>)>(day: &u8,fct: &F,part: &Part,data_set: &Dataset,lines: &Vec<String>) {
     let start = Instant::now();
     println!("[Day {}][{:?}][{:?}] Starting ", day, part, data_set);
-    fct(part,lines);
+    fct(part, lines);
     println!(
         "[Day {}][{:?}][{:?}] Duration {} ms ",
         day,
@@ -67,7 +67,7 @@ pub fn to_lines(day: &u8, data_set: &Dataset) -> Vec<String> {
 }
 
 pub fn run_all<F: Fn(&Part, &Vec<String>)>(day: &u8, fct: &F, active: &Active) {
-    if let Active::False = active  {
+    if let Active::False = active {
         return;
     }
 
