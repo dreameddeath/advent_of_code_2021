@@ -2,6 +2,8 @@ use std::fs::File;
 use std::io::{self, BufRead, BufReader, Error, Lines};
 use std::path::Path;
 use std::time::Instant;
+
+
 fn read_lines_internal<P>(filename: P) -> Result<Lines<BufReader<File>>, Error>
 where
     P: AsRef<Path>,

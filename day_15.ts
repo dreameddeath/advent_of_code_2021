@@ -1,4 +1,4 @@
-import { generator, Part, run, Type } from "../day_utils"
+import { generator, Part, run, Type } from "./day_utils"
 const testData = `1163751742
 1381373672
 2136511328
@@ -88,7 +88,8 @@ function lookup_min_path(caveMap: CaveMap): [number, Pos[]] {
             break;
         }
         if (nextNode.pos.x === caveMap.maxX && nextNode.pos.y === caveMap.maxY) {
-            console.log(`Explored ${explored.length} vs ${totalNodes}`)
+            const exploredCount = explored.reduce((countTotal, line) => countTotal + line.reduce((countLine, cell) => countLine + ((cell !== undefined) ? 1 : 0), 0), 0);
+            console.log(`Explored ${exploredCount} vs ${totalNodes}`)
             const path = []
             let currNode: WeightedPos | undefined = nextNode
             do {
@@ -135,10 +136,9 @@ function puzzle(lines: string[], part: Part): void {
         maxX: map[0].length - 1,
         maxY: map.length - 1
     }
-    const visited: ExploredMap = [...generator(map.length)].map(_ => []);
-    //visited[0][0] = true;
+
     const result = lookup_min_path(caveMap);
-    //const result = second_attempt(caveMap);
+
     console.log(`Result ${result[0]}`);
 }
 
