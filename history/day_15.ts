@@ -1,4 +1,4 @@
-import { generator, Part, run, Type } from "./day_utils"
+import { generator, Part, run, Type } from "../day_utils"
 const testData = `1163751742
 1381373672
 2136511328

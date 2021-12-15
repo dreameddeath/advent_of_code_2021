@@ -108,14 +108,14 @@ fn to_lookup(node: &WeightedPos, map: &Map) -> Vec<WeightedPos> {
         WeightedPos {
             pos: tuple.0.clone(),
             cost_from_origin: cost,
-            estimated_total_cost: calc_cost(&cost, &tuple.0, map),
+            estimated_total_cost: calc_estimated_total_cost(&cost, &tuple.0, map),
             previous: Some(node.pos),
         }
     })
     .collect();
 }
 
-fn calc_cost(cost: &u16, pos: &Pos, map: &Map) -> u16 {
+fn calc_estimated_total_cost(cost: &u16, pos: &Pos, map: &Map) -> u16 {
     cost + (map.max_x - pos.x) + (map.max_y - pos.y)
 }
 
@@ -126,7 +126,7 @@ fn a_star_lookup(map: &Map) -> u16 {
         pos: Pos { x: 0, y: 0 },
         cost_from_origin: 0,
         previous: None,
-        estimated_total_cost: calc_cost(&0, &Pos { x: 0, y: 0 }, map),
+        estimated_total_cost: calc_estimated_total_cost(&0, &Pos { x: 0, y: 0 }, map),
     });
 
     while let Some(item) = priority_queue.pop() {
