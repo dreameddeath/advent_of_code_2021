@@ -1,4 +1,4 @@
-import { Part, run, Type } from "./day_utils"
+import { Part, run, Type } from "../day_utils"
 const testData = `fs-end
 he-DX
 fs-he
