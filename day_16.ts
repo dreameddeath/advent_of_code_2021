@@ -20,11 +20,23 @@ const bitMap: { [key: string]: string } = {
     "F": "1111"
 }
 
+type PacketOperatorDetail = {
+    type: "operator",
+    operator: Operator,
+    values: Packet[]
+}
+
+type PacketLiteralDetail = {
+    type: "literal",
+    value: bigint
+}
+
+
+
 type Packet = {
     version: number,
-    type: "literal" | "operator",
     typeId: string,
-    value: bigint | Packet[]
+    detail: PacketLiteralDetail | PacketOperatorDetail
 }
 
 type ParserState = {
@@ -64,12 +76,18 @@ function parsePacket(state: ParserState): Packet {
         }
         return {
             version,
-            type: "literal",
             typeId,
-            value: strToBitInt(literal_value)
+            detail: {
+                type: "literal",
+                value: strToBitInt(literal_value)
+            }
         }
     }
     else {
+        const operator = Object.values(Operator).find((val)=>val===typeId);
+        if(operator===undefined){
+            throw "UNKNOWN_OPERATOR"
+        }
         const lengthType = read_next(1, state);
         if (lengthType === "0") {
             const subPacketContentSize = read_next(15, state);
@@ -77,21 +95,27 @@ function parsePacket(state: ParserState): Packet {
             const subContent = read_next(length, state);
             const subState: ParserState = { currPos: 0, value: subContent };
             return {
-                type: 'operator',
                 version,
                 typeId,
-                value: parsePackets(subState)
+                detail: {
+                    type: "operator",
+                    operator: typeId as Operator,
+                    values: parsePackets(subState)
+                }
             }
         }
         else {
             const nbSubPacketsStr = read_next(11, state)
             const nbSubPacket = strToNum(nbSubPacketsStr);
-            const packets = [...generator(nbSubPacket)].map((index) => parsePacket(state));
+            const packets = [...generator(nbSubPacket)].map((_) => parsePacket(state));
             return {
-                type: 'operator',
                 version,
                 typeId,
-                value: packets
+                detail: {
+                    type: "operator",
+                    operator: typeId as Operator,
+                    values: packets
+                }
             }
         }
     }
@@ -115,10 +139,10 @@ function parse(line: string): string {
 }
 
 function sum_version(packets: Packet[]): number {
-    return packets.reduce((sum, packet) => sum + packet.version + (Array.isArray(packet.value) ? sum_version(packet.value) : 0), 0)
+    return packets.reduce((sum, packet) => sum + packet.version + (packet.detail.type==="literal" ? 0 : sum_version(packet.detail.values)), 0)
 }
 
-enum OPERATORS {
+enum Operator {
     SUM = "000",
     PRODUCT = "001",
     MIN = "010",
@@ -128,29 +152,29 @@ enum OPERATORS {
     EQ = "111"
 }
 
-function minBigInt(a:bigint,b:bigint):bigint{
-    return a>b?b:a
+function minBigInt(a: bigint, b: bigint): bigint {
+    return a > b ? b : a
 }
 
 
-function maxBigInt(a:bigint,b:bigint):bigint{
-    return a<b?b:a;
+function maxBigInt(a: bigint, b: bigint): bigint {
+    return a < b ? b : a;
 }
 
 function calc(packet: Packet): bigint {
-    if (typeof packet.value === "bigint") {
-        return packet.value;
+    if (packet.detail.type === "literal") {
+        return packet.detail.value;
     }
-    switch (packet.typeId) {
-        case OPERATORS.SUM: return packet.value.reduce((sum, packet) => sum + calc(packet), 0n);
-        case OPERATORS.PRODUCT: return packet.value.reduce((sum, packet) => sum * calc(packet), 1n);
-        case OPERATORS.MIN: return packet.value.reduce((min, packet) => (min === -1n) ? calc(packet) : minBigInt(min, calc(packet)), -1n);
-        case OPERATORS.MAX: return packet.value.reduce((max, packet) => (max === -1n) ? calc(packet) : maxBigInt(max, calc(packet)), -1n);
-        case OPERATORS.EQ: return calc(packet.value[0]) === calc(packet.value[1]) ? 1n : 0n;
-        case OPERATORS.LT: return calc(packet.value[0]) < calc(packet.value[1]) ? 1n : 0n;
-        case OPERATORS.GT: return calc(packet.value[0]) > calc(packet.value[1]) ? 1n : 0n;
+    const values = packet.detail.values;
+    switch (packet.detail.operator) {
+        case Operator.SUM: return values.reduce((sum, packet) => sum + calc(packet), 0n);
+        case Operator.PRODUCT: return values.reduce((sum, packet) => sum * calc(packet), 1n);
+        case Operator.MIN: return values.reduce((min, packet) => (min === -1n) ? calc(packet) : minBigInt(min, calc(packet)), -1n);
+        case Operator.MAX: return values.reduce((max, packet) => (max === -1n) ? calc(packet) : maxBigInt(max, calc(packet)), -1n);
+        case Operator.EQ: return calc(values[0]) === calc(values[1]) ? 1n : 0n;
+        case Operator.LT: return calc(values[0]) < calc(values[1]) ? 1n : 0n;
+        case Operator.GT: return calc(values[0]) > calc(values[1]) ? 1n : 0n;
     }
-    throw "NOT_MANAGED";
 }
 
 function puzzle(lines: string[], part: Part): void {
@@ -158,7 +182,7 @@ function puzzle(lines: string[], part: Part): void {
     const packets = parsePackets({ currPos: 0, value: parsed });
     const sum = sum_version(packets)
     const calc_res = calc(packets[0]);
-    console.log("Parsed:" + sum +"  calc result "+calc_res);
+    console.log("Parsed:" + sum + "  calc result " + calc_res);
 }
 
 run(16, testData, [Type.TEST, Type.RUN], puzzle, [Part.PART_1, Part.PART_2])
