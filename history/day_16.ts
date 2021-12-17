@@ -1,4 +1,4 @@
-import { generator, Part, run, Type } from "./day_utils"
+import { generator, Part, run, Type } from "../day_utils"
 const testData = `9C0141080250320F1802104A08`
 
 const bitMap: { [key: string]: string } = {
