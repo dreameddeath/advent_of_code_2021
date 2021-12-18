@@ -150,49 +150,96 @@ fn parse_literal(reader_state: &mut ReaderState) -> Result<u64, ParseExprError> 
     return Ok(result);
 }
 
+fn parse_variable_with_length(reader_state: &mut ReaderState) -> Result<Vec<Expr>, ParseExprError> {
+    let mut res: Vec<Expr> = vec![];
+    let length = reader_state.read_n_bits(15)?;
+    reader_state.add_guard(length);
+    loop {
+        let next_expr = parse_expr(reader_state);
+        match next_expr {
+            Ok(expr) => res.push(expr),
+            Err(ParseExprError::NotEnoughChars) => break,
+            Err(error) => return Err(error),
+        }
+    }
+    reader_state.remove_guard();
+    return Ok(res);
+}
+
+fn parse_variable_with_number_of_sub_expr(
+    reader_state: &mut ReaderState,
+) -> Result<Vec<Expr>, ParseExprError> {
+    let mut res: Vec<Expr> = vec![];
+    let length = reader_state.read_n_bits(11)?;
+    while (res.len() < (length as usize)) {
+        let next_expr = parse_expr(reader_state);
+        match next_expr {
+            Ok(expr) => res.push(expr),
+            Err(ParseExprError::NotEnoughChars) => break,
+            Err(error) => return Err(error),
+        }
+    }
+    return Ok(res);
+}
+
 fn parse_variable(reader_state: &mut ReaderState) -> Result<Vec<Expr>, ParseExprError> {
     let length_type = reader_state.read_n_bits(1)?;
-    let mut res: Vec<Expr> = vec![];
     if length_type == 0 {
-        let length = reader_state.read_n_bits(15)?;
-        reader_state.add_guard(length);
-        loop {
-            let next_expr = parse_expr(reader_state);
-            match next_expr {
-                Ok(expr) => res.push(expr),
-                Err(ParseExprError::NotEnoughChars) => break,
-                Err(error) => return Err(error),
-            }
-        }
-        reader_state.guards.pop();
-        return Ok(res);
+        return parse_variable_with_length(reader_state);
+    } else {
+        return parse_variable_with_number_of_sub_expr(reader_state);
     }
-    return Err(ParseExprError::BadSubExpressionCount);
 }
 
 fn parse_tuple(reader_state: &mut ReaderState) -> Result<(Expr, Expr), ParseExprError> {
-    let result = parse_variable(reader_state)?;
-    /*if result.len() != 2 {
+    let mut result = parse_variable(reader_state)?;
+    let second = result.pop();
+    let first = result.pop();
+    if result.len() > 0 {
         return Err(ParseExprError::BadSubExpressionCount);
-    }*/
-    return Err(ParseExprError::BadSubExpressionCount);
+    }
+    return first
+        .zip(second)
+        .map(|items| Ok(items))
+        .unwrap_or(Err(ParseExprError::BadSubExpressionCount));
 }
 
 fn parse_expr(reader_state: &mut ReaderState) -> Result<Expr, ParseExprError> {
-    let version = reader_state.read_n_bits(3)?;
+    let version = reader_state.read_n_bits(3)? as u8;
     let type_id = reader_state.read_n_bits(3)?;
     return match type_id {
-        //0 => Ok(Expr::Sum{}),
-        // 1 => Ok(Expr::Mul{})
-        //2 => Ok(Expr::Min{}),
-        //3 => Ok(Expr::Max{}),
+        0 => Ok(Expr::Sum {
+            version,
+            args: parse_variable(reader_state)?,
+        }),
+        1 => Ok(Expr::Mul {
+            version,
+            args: parse_variable(reader_state)?,
+        }),
+        2 => Ok(Expr::Min {
+            version,
+            args: parse_variable(reader_state)?,
+        }),
+        3 => Ok(Expr::Max {
+            version,
+            args: parse_variable(reader_state)?,
+        }),
         4 => Ok(Expr::Literal {
             version: version as u8,
             value: parse_literal(reader_state)?,
         }),
-        //5=> Ok(Expr::Gt{}),
-        //6=> Ok(Expr::Lt{}),
-        //7=> Ok(Expr::Eq{})
+        5 => {
+            let (a, b) = parse_tuple(reader_state)?;
+            Ok(Expr::Gt { version, a:Box::new(a), b:Box::new(b) })
+        }
+        6 => {
+            let (a, b) = parse_tuple(reader_state)?;
+            Ok(Expr::Lt { version, a:Box::new(a), b:Box::new(b) })
+        }
+        7=> {
+            let (a, b) = parse_tuple(reader_state)?;
+            Ok(Expr::Eq{ version, a:Box::new(a), b:Box::new(b) })
+        }
         _ => Err(ParseExprError::UnknownOperation),
     };
 }
@@ -208,10 +255,23 @@ fn parse(lines: &Vec<String>) -> Result<Expr, ParseExprError> {
         .unwrap_or(Result::Err(ParseExprError::UnknownOperation));
 }
 
+fn sum_version_content(expr:Expr)->u32{
+    return match expr {
+        Expr::Literal { version, .. } => version as u32,
+        Expr::Eq
+    }
+}
+
+fn sum_version(expr:Expr)->u32{
+    
+}
+
 pub fn puzzle(part: &Part, lines: &Vec<String>) {
-    let expr = parse(lines);
+    let expr_res = parse(lines);
+    let expr =expr_res.unwrap();
     match part {
         Part::Part1 => {
+
             println!("Result {}", "nothing")
         }
         Part::Part2 => {
