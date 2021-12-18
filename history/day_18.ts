@@ -1,6 +1,5 @@
 import { assert } from "console"
-import exp from "constants"
-import { Part, run, Type } from "./day_utils"
+import { Part, run, Type } from "../day_utils"
 const testData = `[[[0,[5,8]],[[1,7],[9,6]]],[[4,[1,2]],[[1,4],2]]]
 [[[5,[2,8]],4],[5,[[9,9],0]]]
 [6,[[[6,2],[5,6]],[[7,6],[4,7]]]]
@@ -73,7 +72,6 @@ function applyAction(act: Action, item: Expr): Expr {
     if (typeof item === "number") {
         act.done = true
         return item + act.value;
-
     }
     else if (act.action === "right") {
         const newLeft = applyAction(act, item[0]);
