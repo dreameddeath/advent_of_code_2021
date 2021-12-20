@@ -1,5 +1,5 @@
 
-import { Part, run, Type } from "./day_utils"
+import { Part, run, Type } from "../day_utils"
 const testData = `--- scanner 0 ---
 404,-588,-901
 528,-643,409
