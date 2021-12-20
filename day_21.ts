@@ -1,5 +1,6 @@
-import { Part, run, Type } from "./day_utils"
+import { generator, Part, run, Type } from "./day_utils"
 const testData = ``
+
 
 
 function puzzle(lines: string[], part: Part): void {
