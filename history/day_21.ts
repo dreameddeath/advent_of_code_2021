@@ -1,4 +1,4 @@
-import { Part, run, Type } from "./day_utils"
+import { Part, run, Type } from "../day_utils"
 const testData = `Player 1 starting position: 4
 Player 2 starting position: 8`
 
