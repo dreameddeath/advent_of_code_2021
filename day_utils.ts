@@ -18,13 +18,14 @@ export function getData(day: number, test: Type, testData: string): string[] {
     return data.split(/\r?\n/);
 }
 
-export function run(day: number, testData: string, types: Type[], fct: (lines: string[], part: Part) => void, parts: Part[] = [Part.ALL]): void {
+export function run(day: number, testData: string|[string,string], types: Type[], fct: (lines: string[], part: Part) => void, parts: Part[] = [Part.ALL]): void {
     parts.forEach(part => {
         types.forEach(type => {
             const name = Type[type];
             console.log(`[${name}][${part}] Running`)
             const start = new Date()
-            fct(getData(day, type, testData), part)
+            const effectiveTestData = !Array.isArray(testData)?testData:((part===Part.PART_2)?testData[1]:testData[0])
+            fct(getData(day, type, effectiveTestData), part)
             const duration = (new Date()).getTime() - start.getTime()
             console.log(`[${name}][${part}] Done in ${duration} ms`)
         })
