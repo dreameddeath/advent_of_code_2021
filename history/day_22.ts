@@ -1,5 +1,5 @@
 import { assert } from "console"
-import { Part, run, Type } from "./day_utils"
+import { Part, run, Type } from "../day_utils"
 const testData = `on x=-20..26,y=-36..17,z=-47..7
 on x=-20..33,y=-21..23,z=-26..28
 on x=-22..28,y=-29..23,z=-38..16
@@ -326,7 +326,6 @@ function puzzle(lines: string[], part: Part): void {
     else {
         const world: EngineState = { already_managed_with_overlaps: [], onCount: 0n };
         instructions.forEach(instruction => apply_instruction(world, instruction, false));
-
         console.log(`Results ${world.onCount}`);
     }
 }
