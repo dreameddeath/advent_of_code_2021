@@ -1,7 +1,8 @@
 use crate::utils::Part;
-use regex::{Regex, Captures};
-
-use std::{collections::{BTreeSet, btree_set}, ops::RangeInclusive};
+use regex::{Captures, Regex};
+use std::{
+    collections::BTreeSet, mem::size_of, ops::RangeInclusive, time::Instant,
+};
 
 struct Cuboid {
     x: RangeInclusive<i32>,
@@ -9,348 +10,394 @@ struct Cuboid {
     z: RangeInclusive<i32>,
 }
 
+type RealSizeTuple = (i32, u32, i32);
 struct AdaptativeGridAxis {
-    coords: BTreeSet<i32>,
-    range:(i32,i32)
-}
-
-struct AdaptativeGridAxisCuboidRange<'a>{
-    min_max:(i32,i32),
-    axis_iter:btree_set::Iter<'a,i32>,
-    last_iter_value:Option<&'a i32>,
-    next_iter_value:Option<&'a i32>,
-    last_value:Option<i32>,
-    next_value:Option<i32>,
-    normalized_coord:u32,
-}
-
-impl<'a> AdaptativeGridAxisCuboidRange<'a>{
-    fn new(cuboid_range:&'a RangeInclusive<i32>,axis:&'a AdaptativeGridAxis)->AdaptativeGridAxisCuboidRange<'a>{
-        let min_max = if cuboid_range.end()<&axis.range.0 || cuboid_range.start()>&axis.range.1 {
-            (i32::MAX,i32::MIN)
-        }
-        else{
-            (std::cmp::max(*cuboid_range.start(),axis.range.0),std::cmp::min(*cuboid_range.end(),axis.range.1))
-        };
-
-        let res = AdaptativeGridAxisCuboidRange{
-            min_max,
-            axis_iter:axis.coords.iter(),
-            last_iter_value:None,
-            next_iter_value:None,
-            last_value:None,
-            next_value:None,
-            normalized_coord:0
-        };
-        res.axis_iter_next();
-        res
-    }
-
-    fn axis_iter_next(&mut self)->Option<()>{
-        if let None = self.last_iter_value {
-            self.normalized_coord = 0;
-            self.next_iter_value = self.axis_iter.next();
-        }
-        else{
-            self.normalized_coord+=1;
-        }
-        self.last_iter_value = self.next_iter_value;
-        self.next_iter_value = self.axis_iter.next();
-        if let None = self.next_iter_value {
-            return None;
-        }
-        else{
-            return Some(())
-        }
-    }
-}
-
-impl<'a> Iterator for AdaptativeGridAxisCuboidRange<'a> {
-    type Item = (u32,u32);
-
-    
-    
-    fn next(&mut self) -> Option<Self::Item> {
-
-        loop{
-            let start =self.last_value.or_else(||self.axis_iter.next().map(|v| *v))?;
-
-            let next = std::cmp::min(self.cuboid_range.end(),self.axis_iter.next()?);
-            self.normalized_coord+=1;
-            if next<self.cuboid_range.start(){
-                continue;
-            }
-            let curr_coord = self.normalized_coord;
-            self.last_value=Some(*next);
-        }
-        
-    }
-
-    
-    
+    items: Vec<RealSizeTuple>,
+    range: (i32, i32),
 }
 
 impl AdaptativeGridAxis {
-    fn new<F>(cuboids:&Vec<&Cuboid>,max:i32, f:F) -> AdaptativeGridAxis where F:Fn(&Cuboid)->&RangeInclusive<i32> {
-        let btree = BTreeSet::new();
-        btree.insert(max);
+    fn new<'a, F>(cuboids: &'a [&'a Cuboid], max: i32, f: F) -> AdaptativeGridAxis
+    where
+        F: Fn(&'a Cuboid) -> &'a RangeInclusive<i32>,
+    {
+        let mut btree = BTreeSet::new();
+        btree.insert(max + 1);
         btree.insert(-max);
-        cuboids.iter().map(|cuboid| f(cuboid)).for_each(|range|{
+        cuboids.iter().map(|cuboid| f(cuboid)).for_each(|range| {
             let start = range.start();
-            if *start>=-max && *start<=max {
+            if *start >= -max && *start <= max {
                 btree.insert(*range.start());
             }
             let end = range.end();
-            if *end>=-max && *end<=max{
-                btree.insert(*range.end());
-            }    
+            if *end >= -max && *end <= max {
+                btree.insert(*range.end() + 1);
+            }
         });
 
         AdaptativeGridAxis {
-            coords: btree,
-            range:(-max,max)
+            items: btree
+                .into_iter()
+                .collect::<Vec<i32>>()
+                .as_slice()
+                .windows(2)
+                .map(|v| (v[0], v[1]))
+                .enumerate()
+                .map(|(_, (r1, r2))| (r1, (r2 as i64 - r1 as i64) as u32, r2 - 1))
+                .collect(),
+            range: (-max, max),
         }
-
     }
 
-    fn normalized_iter(&self,range:RangeInclusive<i32>)->
+    fn real_range_to_short(&self, range: &RangeInclusive<i32>) -> Option<RangeInclusive<u32>> {
+        if *range.end() < self.range.0 {
+            return None;
+        } else if *range.start() > self.range.1 {
+            return None;
+        }
+        let effective_start = std::cmp::max(*range.start(), self.range.0);
+        let effective_end = std::cmp::min(*range.end(), self.range.1);
+        let found = self
+            .items
+            .iter()
+            .enumerate()
+            .filter(|(_, (rs, _, re))| *rs == effective_start || *re == effective_end)
+            .take(2)
+            .map(|(pos, _)| pos as u32)
+            .collect::<Vec<u32>>();
+        return match found.first() {
+            None => None,
+            Some(first) => match found.last() {
+                None => None,
+                Some(last) => Some(RangeInclusive::new(*first, *last)),
+            },
+        };
+    }
+
+    fn memory_estimate(&self) -> usize {
+        self.items.capacity() * size_of::<RealSizeTuple>()
+    }
+}
+
+struct Circular<'a, R> {
+    vector: &'a Vec<R>,
+    iter: std::slice::Iter<'a, R>,
+    curr: &'a R,
+}
+
+impl<'a, R> Circular<'a, R> {
+    fn new(vector: &'a Vec<R>) -> Circular<'a, R> {
+        let mut iter = vector.iter();
+        let curr = iter.next().unwrap();
+        return Circular { vector, iter, curr };
+    }
+    fn move_next(&mut self) -> bool {
+        let nex_opt = self.iter.next();
+        let mut has_rotate = false;
+        self.curr = match nex_opt {
+            Some(v) => v,
+            None => {
+                has_rotate = true;
+                self.iter = self.vector.iter();
+                self.iter.next().unwrap()
+            }
+        };
+        has_rotate
+    }
 }
 
 struct AdaptativeGrid {
     x_coords: AdaptativeGridAxis,
     y_coords: AdaptativeGridAxis,
     z_coords: AdaptativeGridAxis,
-    values:Vec<u32>
+    values: Vec<u32>,
 }
 
+const PACKED_TYPE_SIZE: u8 = 32;
+const PACKED_TYPE_ALL_SET: u32 = u32::MAX;
+
 impl AdaptativeGrid {
-    fn new(cuboids:&Vec<&Cuboid>, max:i32) -> AdaptativeGrid {
-        let x_coords= AdaptativeGridAxis::new(cuboids,max,|cuboid| &cuboid.x);
-        let y_coords= AdaptativeGridAxis::new(cuboids,max,|cuboid| &cuboid.y);
-        let z_coords= AdaptativeGridAxis::new(cuboids,max,|cuboid| &cuboid.z);
-        let total_size = x_coords.coords.len()*y_coords.coords.len()*z_coords.coords.len();
-        let compact_size = total_size / 32 + if total_size%32 > 0 { 1 } else { 0 };
-        let values:Vec<u32> = vec![0;compact_size];
-        
+    fn new<'a>(cuboids: &Vec<&Cuboid>, max: i32) -> AdaptativeGrid {
+        let x_coords = AdaptativeGridAxis::new(cuboids, max, |cuboid| &cuboid.x);
+        let y_coords = AdaptativeGridAxis::new(cuboids, max, |cuboid| &cuboid.y);
+        let z_coords = AdaptativeGridAxis::new(cuboids, max, |cuboid| &cuboid.z);
+        let total_size = x_coords.items.len() * y_coords.items.len() * z_coords.items.len();
+        let compact_size = total_size / (PACKED_TYPE_SIZE as usize)
+            + if total_size % (PACKED_TYPE_SIZE as usize) > 0 {
+                1
+            } else {
+                0
+            };
+        let values: Vec<u32> = vec![0; compact_size];
+
         AdaptativeGrid {
             x_coords,
             y_coords,
             z_coords,
-            values
+            values,
         }
+    }
+
+    fn memory_estimate(&self) -> usize {
+        self.values.capacity() * size_of::<u32>()
+            + self.z_coords.memory_estimate()
+            + self.y_coords.memory_estimate()
+            + self.x_coords.memory_estimate()
+    }
+    fn array_pos(&self, x: u32, y: u32, z: u32) -> (usize, u8) {
+        let offset = z as usize * self.y_coords.items.len() * self.x_coords.items.len()
+            + y as usize * self.x_coords.items.len()
+            + x as usize;
+
+        return (
+            offset / (PACKED_TYPE_SIZE as usize),
+            (offset % (PACKED_TYPE_SIZE as usize)) as u8,
+        );
+    }
+
+    fn set(&mut self, cuboid: &Cuboid, v: bool) -> Option<()> {
+        let x_range = self.x_coords.real_range_to_short(&cuboid.x)?;
+        let y_range = self.y_coords.real_range_to_short(&cuboid.y)?;
+        let z_range = self.z_coords.real_range_to_short(&cuboid.z)?;
+        let value = if v { PACKED_TYPE_ALL_SET } else { 0 };
+        for z in z_range {
+            for y in *y_range.start()..=*y_range.end() {
+                let start = self.array_pos(*x_range.start(), y, z);
+                let end = self.array_pos(*x_range.end(), y, z);
+
+                for i in start.0..=end.0 {
+                    self.values[i] = if i == start.0 || i == end.0 {
+                        let mask = calc_mask(i, start, end);
+                        (self.values[i] & !mask) | (value & mask)
+                    } else {
+                        value
+                    }
+                }
+            }
+        }
+        return Some(());
+    }
+
+    fn count(&self) -> u64 {
+        let mut z_circular = Circular::new(&self.z_coords.items);
+        let mut y_circular = Circular::new(&self.y_coords.items);
+        let mut x_circular = Circular::new(&self.x_coords.items);
+        let mut sum: u64 = 0;
+
+        for v in &self.values {
+            for bit in (0..=(PACKED_TYPE_SIZE - 1)).rev() {
+                sum += if (v & (1 << bit)) == 0 {
+                    0
+                } else {
+                    z_circular.curr.1 as u64 * y_circular.curr.1 as u64 * x_circular.curr.1 as u64
+                };
+                let _ = x_circular.move_next() && y_circular.move_next() && z_circular.move_next();
+            }
+        }
+
+        return sum;
     }
 }
 
+fn calc_mask(pos: usize, start: (usize, u8), end: (usize, u8)) -> u32 {
+    let mut mask = PACKED_TYPE_ALL_SET;
+    if start.0 == pos {
+        mask &= PACKED_TYPE_ALL_SET >> start.1;
+    }
+    if end.0 == pos {
+        mask &= PACKED_TYPE_ALL_SET << (31 - end.1)
+    }
+    mask
+}
 
-
-
-struct Instruction{
-    on:bool,
-    cuboid:Cuboid
+struct Instruction {
+    on: bool,
+    cuboid: Cuboid,
 }
 
 #[derive(Debug)]
 enum ParsingError {
-    BadFormat
+    BadFormat,
 }
 
-static parser:Regex = Regex::new(r"(on|off)\s+x=(-?\d+)\.\.(-?\d+),y=(-?\d+)\.\.(-?\d+),z=(-?\d+)\.\.(-?\d+)").unwrap();
-
-fn parse_int(captures:&Captures,pos:usize)->Result<i32,ParsingError>{
-    captures.get(pos).ok_or(ParsingError::BadFormat)
-        .and_then(|v| v.as_str().parse::<i32>().or_else(ParsingError::BadFormat))
+fn parse_int(captures: &Captures, pos: usize) -> Result<i32, ParsingError> {
+    captures
+        .get(pos)
+        .ok_or(ParsingError::BadFormat)
+        .and_then(|v| {
+            v.as_str()
+                .parse::<i32>()
+                .ok()
+                .ok_or(ParsingError::BadFormat)
+        })
 }
 
-fn parse_line(line: &str) -> Result<Instruction, ParsingError> {
+fn parse_line(line: &str, parser: &Regex) -> Result<Instruction, ParsingError> {
     let captures = parser.captures(line).ok_or(ParsingError::BadFormat)?;
-    let on = captures.get(1).ok_or(ParsingError::BadFormat)? == "on";
-    let x1 = parse_int(&captures,2)?;
-    let x2 = parse_int(&captures,3)?;
-    let y1 = parse_int(&captures,4)?;
-    let y2 = parse_int(&captures,5)?;
-    let z1 = parse_int(&captures,6)?;
-    let z2 = parse_int(&captures,7)?;
+    let on = captures.get(1).ok_or(ParsingError::BadFormat)?.as_str() == "on";
+    let x1 = parse_int(&captures, 2)?;
+    let x2 = parse_int(&captures, 3)?;
+    let y1 = parse_int(&captures, 4)?;
+    let y2 = parse_int(&captures, 5)?;
+    let z1 = parse_int(&captures, 6)?;
+    let z2 = parse_int(&captures, 7)?;
 
-    return Ok(Instruction{
+    return Ok(Instruction {
         on,
-        cuboid:Cuboid{
-            x:RangeInclusive::new(x1,x2),
-            y:RangeInclusive::new(y1,y2),
-            z:RangeInclusive::new(z1,z2),
-        }
-    })
+        cuboid: Cuboid {
+            x: RangeInclusive::new(x1, x2),
+            y: RangeInclusive::new(y1, y2),
+            z: RangeInclusive::new(z1, z2),
+        },
+    });
 }
 
 fn parse(lines: &Vec<String>) -> Result<Vec<Instruction>, ParsingError> {
-    return lines.iter().map(|string| parse_line(&string)).collect();
+    let parser: Regex =
+        Regex::new(r"(on|off)\s+x=(-?\d+)\.\.(-?\d+),y=(-?\d+)\.\.(-?\d+),z=(-?\d+)\.\.(-?\d+)")
+            .or(Err(ParsingError::BadFormat))?;
+    return lines
+        .iter()
+        .map(|string| parse_line(&string, &parser))
+        .collect();
 }
-
 
 pub fn puzzle(part: &Part, lines: &Vec<String>) {
     let instructions = parse(lines).unwrap();
     match part {
         Part::Part1 => {
-            let grid = AdaptativeGrid::new(&instructions.iter().map(|it| &it.cuboid).collect(),50);
-            for instruction in instructions{
-                for x in grid.x_coords.normalized_iter(instruction.cuboid.x) {
-                    for y in grid.y_coords.normalized_iter(instruction.cuboid.y) {
-                        for z in grid.x_coords.normalized_iter(instruction.cuboid.z) {
-                        }
-                    }
-                }
+            let mut grid =
+                AdaptativeGrid::new(&instructions.iter().map(|it| &it.cuboid).collect(), 50);
+            for instruction in instructions {
+                grid.set(&instruction.cuboid, instruction.on);
             }
-            println!("Result Version {}", mag)
+
+            let result = grid.count();
+            println!("Result Version {}", result)
         }
         Part::Part2 => {
-            let snailfish_pairs_ref = &snailfish_pairs;
-            let combinations: Vec<u32> = snailfish_pairs_ref
-                .iter()
-                .flat_map(|i1| {
-                    snailfish_pairs_ref.iter().map(move |i2| {
-                        if std::ptr::eq(i1, i2) {
-                            0
-                        } else {
-                            magnitude(&sum(i1.clone(), i2.clone(), false))
-                        }
-                    })
-                })
-                .collect();
-            let max = combinations
-                .iter()
-                .fold(0u32, |curr, val| std::cmp::max(curr, *val));
-            println!("Result Eval {}", max);
+            let mut grid = AdaptativeGrid::new(
+                &instructions.iter().map(|it| &it.cuboid).collect(),
+                i32::MAX - 1,
+            );
+            for instruction in instructions {
+                grid.set(&instruction.cuboid, instruction.on);
+            }
+            let start = Instant::now();
+            let result = grid.count();
+            let duration = start.elapsed().as_millis();
+            println!("Result Eval {}, counted in {} ms with memory of {} bytes", result, duration,grid.memory_estimate());
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
+
     // Note this useful idiom: importing names from outer (for mod tests) scope.
     use super::*;
-
     #[test]
-    fn test_explode_simple_left() {
-        let mut value = parse_line("[[[[[9,8],1],2],3],4]").unwrap();
-        let res = explode(&mut value, 0);
+    fn test_calc_mask() {
+        assert_eq!(calc_mask(0, (0, 0), (1, 0)), u32::MAX);
+        assert_eq!(calc_mask(0, (0, 1), (1, 0)), u32::MAX >> 1);
+        assert_eq!(calc_mask(0, (0, 10), (1, 0)), u32::MAX >> 10);
+        assert_eq!(calc_mask(0, (0, 31), (1, 0)), 1);
+
+        assert_eq!(calc_mask(1, (0, 0), (1, 0)), u32::MAX << 31);
+        assert_eq!(calc_mask(1, (0, 1), (1, 1)), u32::MAX << 30);
+        assert_eq!(calc_mask(1, (0, 1), (1, 10)), u32::MAX << 21);
+        assert_eq!(calc_mask(1, (0, 1), (1, 31)), u32::MAX);
+
         assert_eq!(
-            res,
-            Some(ExplodeResult::Exploded(
-                Some(ExplodeAction::PendingLeft(9)),
-                None
-            ))
+            calc_mask(1, (1, 1), (1, 30)),
+            (u32::MAX >> 1) & (u32::MAX << 1)
         );
-        assert_eq!(value.to_string(), "[[[[0,9],2],3],4]")
+
+        assert_eq!(calc_mask(1, (1, 0), (1, 0)), 1 << 31);
     }
 
     #[test]
-    fn test_explode_simple_right() {
-        let mut value = parse_line("[7,[6,[5,[4,[3,2]]]]]").unwrap();
-        let res = explode(&mut value, 0);
-        assert_eq!(
-            res,
-            Some(ExplodeResult::Exploded(
-                None,
-                Some(ExplodeAction::PendingRight(2))
-            ))
-        );
-        assert_eq!(value.to_string(), "[7,[6,[5,[7,0]]]]")
+    fn test_simple_instruction() {
+        let instructions = [Instruction {
+            on: true,
+            cuboid: Cuboid {
+                x: RangeInclusive::new(-50, -50),
+                y: RangeInclusive::new(-50, -50),
+                z: RangeInclusive::new(-50, -49),
+            },
+        }];
+
+        let mut grid = AdaptativeGrid::new(&instructions.iter().map(|it| &it.cuboid).collect(), 50);
+        assert_eq!(grid.array_pos(0, 0, 0), (0, 0));
+        assert_eq!(grid.array_pos(1, 0, 0), (0, 1));
+        assert_eq!(grid.array_pos(0, 1, 0), (0, 2));
+        assert_eq!(grid.array_pos(1, 1, 0), (0, 3));
+
+        grid.set(&instructions[0].cuboid, true);
+
+        assert_eq!(grid.values[0], 1 << 31);
+        assert_eq!(grid.count(), 2);
     }
 
     #[test]
-    fn test_explode_simple_middle() {
-        let mut value = parse_line("[[6,[5,[4,[3,2]]]],1]").unwrap();
-        let res = explode(&mut value, 0);
-        assert_eq!(res, Some(ExplodeResult::Exploded(None, None)));
-        assert_eq!(value.to_string(), "[[6,[5,[7,0]]],3]")
-    }
-    #[test]
-    fn test_explode_priority_left() {
-        let mut value = parse_line("[[3,[2,[1,[7,3]]]],[6,[5,[4,[3,2]]]]]").unwrap();
-        let res = explode(&mut value, 0);
-        assert_eq!(res, Some(ExplodeResult::Exploded(None, None)));
-        assert_eq!(value.to_string(), "[[3,[2,[8,0]]],[9,[5,[4,[3,2]]]]]");
+    fn test_simple_instruction_ending() {
+        let instructions = [Instruction {
+            on: true,
+            cuboid: Cuboid {
+                x: RangeInclusive::new(50, 50),
+                y: RangeInclusive::new(50, 50),
+                z: RangeInclusive::new(49, 50),
+            },
+        }];
 
-        //Second time
-        let res2 = explode(&mut value, 0);
-        assert_eq!(
-            res2,
-            Some(ExplodeResult::Exploded(
-                None,
-                Some(ExplodeAction::PendingRight(2))
-            ))
-        );
-        assert_eq!(value.to_string(), "[[3,[2,[8,0]]],[9,[5,[7,0]]]]");
+        let mut grid = AdaptativeGrid::new(&instructions.iter().map(|it| &it.cuboid).collect(), 50);
+        grid.set(&instructions[0].cuboid, true);
+        assert_eq!(grid.count(), 2);
     }
 
     #[test]
-    fn test_sum() {
-        let sum_res = sum(
-            parse_line("[[[[4,3],4],4],[7,[[8,4],9]]]").unwrap(),
-            parse_line("[1,1]").unwrap(),
-            false,
-        );
-        assert_eq!(sum_res.to_string(), "[[[[0,7],4],[[7,8],[6,0]]],[8,1]]");
-    }
-
-    #[test]
-    fn test_complex() {
-        let complex_test: Vec<&str> = vec![
-            "[[[0,[4,5]],[0,0]],[[[4,5],[2,6]],[9,5]]]",
-            "[7,[[[3,7],[4,3]],[[6,3],[8,8]]]]",
-            "[[2,[[0,8],[3,4]]],[[[6,7],1],[7,[1,6]]]]",
-            "[[[[2,4],7],[6,[0,5]]],[[[6,8],[2,8]],[[2,1],[4,5]]]]",
-            "[7,[5,[[3,8],[1,4]]]]",
-            "[[2,[2,2]],[8,[8,1]]]",
-            "[2,9]",
-            "[1,[[[9,3],9],[[9,0],[0,7]]]]",
-            "[[[5,[7,4]],7],1]",
-            "[[[[4,2],2],6],[8,7]]",
+    fn test_cuboid_embbeded_instruction() {
+        let cuboids = [
+            Cuboid {
+                x: RangeInclusive::new(-50, -50),
+                y: RangeInclusive::new(-50, -50),
+                z: RangeInclusive::new(-50, -49),
+            },
+            Cuboid {
+                x: RangeInclusive::new(-50, -48),
+                y: RangeInclusive::new(-50, -48),
+                z: RangeInclusive::new(-50, -48),
+            },
         ];
-        let items_res: Result<Vec<SnailFishItem>, ParsingError> =
-            complex_test.iter().map(|line| parse_line(*line)).collect();
-        let items = items_res.unwrap();
-        let mut intermediates: Vec<String> = Vec::with_capacity(items.len());
-        let final_result = items
-            .into_iter()
-            .reduce(|src, dest| {
-                let intermediate = sum(src, dest, false);
-                intermediates.push(intermediate.to_string());
-                intermediate
-            })
-            .unwrap();
-        assert_eq!(
-            intermediates,
-            vec![
-                "[[[[4,0],[5,4]],[[7,7],[6,0]]],[[8,[7,7]],[[7,9],[5,0]]]]",
-                "[[[[6,7],[6,7]],[[7,7],[0,7]]],[[[8,7],[7,7]],[[8,8],[8,0]]]]",
-                "[[[[7,0],[7,7]],[[7,7],[7,8]]],[[[7,7],[8,8]],[[7,7],[8,7]]]]",
-                "[[[[7,7],[7,8]],[[9,5],[8,7]]],[[[6,8],[0,8]],[[9,9],[9,0]]]]",
-                "[[[[6,6],[6,6]],[[6,0],[6,7]]],[[[7,7],[8,9]],[8,[8,1]]]]",
-                "[[[[6,6],[7,7]],[[0,7],[7,7]]],[[[5,5],[5,6]],9]]",
-                "[[[[7,8],[6,7]],[[6,8],[0,8]]],[[[7,7],[5,0]],[[5,5],[5,6]]]]",
-                "[[[[7,7],[7,7]],[[8,7],[8,7]]],[[[7,0],[7,7]],9]]",
-                "[[[[8,7],[7,7]],[[8,6],[7,7]]],[[[0,7],[6,6]],[8,7]]]"
-            ]
-        );
 
-        assert_eq!(
-            final_result.to_string(),
-            "[[[[8,7],[7,7]],[[8,6],[7,7]]],[[[0,7],[6,6]],[8,7]]]"
-        );
+        let mut grid = AdaptativeGrid::new(&cuboids.iter().collect(), 50);
+
+        grid.set(&cuboids[0], true);
+        grid.set(&cuboids[1], true);
+
+        assert_eq!(grid.count(), 27);
     }
 
     #[test]
-    fn test_magnitude_calc() {
-        let item =
-            parse_line("[[[[6,6],[7,6]],[[7,7],[7,0]]],[[[7,7],[7,7]],[[7,8],[9,9]]]]").unwrap();
-        let result = magnitude(&item);
+    fn test_cuboid_embbeded_substract_instruction() {
+        let cuboids = [
+            Cuboid {
+                x: RangeInclusive::new(-50, -48),
+                y: RangeInclusive::new(-50, -48),
+                z: RangeInclusive::new(-50, -48),
+            },
+            Cuboid {
+                x: RangeInclusive::new(-49, -49),
+                y: RangeInclusive::new(-49, -49),
+                z: RangeInclusive::new(-49, -49),
+            },
+        ];
 
-        assert_eq!(result, 4140);
-    }
+        let mut grid = AdaptativeGrid::new(&cuboids.iter().collect(), 50);
 
-    impl SnailFishItem {
-        fn to_string(&self) -> String {
-            format!("{}", self)
-        }
+        grid.set(&cuboids[0], true);
+        grid.set(&cuboids[1], false);
+
+        assert_eq!(grid.count(), 26);
     }
 }

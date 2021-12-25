@@ -14,5 +14,5 @@ fn main() {
     utils::run_all(&15, &day15::puzzle, &utils::Active::False);
     utils::run_all(&16, &day16::puzzle, &utils::Active::False);
     utils::run_all(&18, &day18::puzzle, &utils::Active::False);
-    utils::run_all(&22, &day18::puzzle, &utils::Active::False);
+    utils::run_all(&22, &day22::puzzle, &utils::Active::True);
 }
