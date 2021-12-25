@@ -1,4 +1,5 @@
-import { generator, Part, run, Type } from "../day_utils"
+import { PriorityQueue } from "./priority_queue"
+import { generator, Part, run, Type } from "./day_utils"
 const testData = `1163751742
 1381373672
 2136511328
@@ -26,17 +27,17 @@ type WeightedPos = {
     pos: Pos,
     from: WeightedPos | undefined
 }
-type ExploredMap = (boolean | undefined)[][]
 
 function parse(lines: string[]): number[][] {
     return lines.map(line => line.split("").map(num => parseInt(num)));
 }
 
 function generate_siblings(curr_pos: Pos, caveMap: CaveMap): Pos[] {
-    return [{ x: curr_pos.x + 1, y: curr_pos.y },
-    { x: curr_pos.x - 1, y: curr_pos.y },
-    { x: curr_pos.x, y: curr_pos.y + 1 },
-    { x: curr_pos.x, y: curr_pos.y - 1 },
+    return [
+        { x: curr_pos.x + 1, y: curr_pos.y },
+        { x: curr_pos.x - 1, y: curr_pos.y },
+        { x: curr_pos.x, y: curr_pos.y + 1 },
+        { x: curr_pos.x, y: curr_pos.y - 1 },
     ]
         .filter(pos => pos.x >= 0 && pos.x <= caveMap.maxX && pos.y >= 0 && pos.y <= caveMap.maxY)
 
@@ -59,37 +60,17 @@ function build_weighted_pos(pos: Pos, caveMap: CaveMap, origin: WeightedPos | un
     }
 }
 
-function is_same(pos?: Pos, other?: Pos): boolean {
-    return pos?.x === other?.x && pos?.y === other?.y;
-}
-
-function insert_into_priority_queue(item: WeightedPos, queue: WeightedPos[]) {
-    const cost = item.comparision_cost;
-    const allValues = queue.length;
-    for (let x = 0; x < allValues; x++) {
-        if (queue[x].comparision_cost < cost) {
-            queue.splice(x, 0, item);
-            return;
-        }
-    }
-    queue.push(item)
-}
-
 
 function lookup_min_path(caveMap: CaveMap): [number, Pos[]] {
-    const explored: WeightedPos[][] = [...generator(caveMap.map.length)].map(_ => []);
-    const totalNodes = caveMap.map.length * caveMap.map[0].length
-
-    const listToExplore: WeightedPos[] = [];
-    insert_into_priority_queue(build_weighted_pos({ x: 0, y: 0 }, caveMap), listToExplore)
-    while (listToExplore.length > 0) {
-        const nextNode = listToExplore.pop();
+    const listToExplore = new PriorityQueue<WeightedPos>((w) => w.estimated_total_cost, true);
+    listToExplore.put(build_weighted_pos({ x: 0, y: 0 }, caveMap), "0|0");
+    while (listToExplore.isNotEmpty()) {
+        const nextNodeRaw = listToExplore.pop();
+        const nextNode = nextNodeRaw?.item
         if (nextNode === undefined) {
             break;
         }
         if (nextNode.pos.x === caveMap.maxX && nextNode.pos.y === caveMap.maxY) {
-            const exploredCount = explored.reduce((countTotal, line) => countTotal + line.reduce((countLine, cell) => countLine + ((cell !== undefined) ? 1 : 0), 0), 0);
-            console.log(`Explored ${exploredCount} vs ${totalNodes}`)
             const path = []
             let currNode: WeightedPos | undefined = nextNode
             do {
@@ -100,21 +81,8 @@ function lookup_min_path(caveMap: CaveMap): [number, Pos[]] {
         }
         const siblings = node_to_explore(nextNode, caveMap);
         for (const sibling of siblings) {
-            const existingInBestPath = explored[sibling.pos.y]?.[sibling.pos.x];
-            if (existingInBestPath !== undefined) {
-                continue;
-            }
-            const existingInSortedQueue = listToExplore.findIndex(node => is_same(node.pos, sibling.pos));
-            if (existingInSortedQueue !== -1) {
-                const current = listToExplore[existingInSortedQueue];
-                if (current.comparision_cost < sibling.comparision_cost) {
-                    continue;
-                }
-                listToExplore.splice(existingInSortedQueue, 1);
-            }
-            insert_into_priority_queue(sibling, listToExplore)
+            listToExplore.put(sibling, `${sibling.pos.x}|${sibling.pos.y}`)
         }
-        explored[nextNode.pos.y][nextNode.pos.x] = nextNode
     }
     return [-1, []];
 }
@@ -142,4 +110,5 @@ function puzzle(lines: string[], part: Part): void {
     console.log(`Result ${result[0]}`);
 }
 
-run(15, testData, [Type.TEST, Type.RUN], puzzle, [Part.PART_1, Part.PART_2])
+run(15, testData, [Type.TEST, Type.RUN], puzzle, [Part.PART_1, Part.PART_2]);
+console.log("All Done")

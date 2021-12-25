@@ -1,5 +1,5 @@
-import { PriorityQueue } from "../priority_queue"
-import { generator, Part, run, Type } from "../day_utils"
+import { PriorityQueue } from "./priority_queue"
+import { generator, Part, run, Type } from "./day_utils"
 const testData = `#############
 #...........#
 ###B#C#B#D###
@@ -70,8 +70,7 @@ function print_world_history(world: World2, moves: Move2[]) {
 
 function solve(init_world: World2): number | undefined {
     CACHE_PATHS.clear();
-    const already_explored: Map<string, boolean> = new Map();
-    const priorityQueue: PriorityQueue<World2> = new PriorityQueue((world) => world.estimated_total_cost);
+    const priorityQueue: PriorityQueue<World2> = new PriorityQueue((world) => world.estimated_total_cost,true);
 
     priorityQueue.put(init_world, get_key2(init_world));
     while (priorityQueue.isNotEmpty()) {
@@ -91,12 +90,8 @@ function solve(init_world: World2): number | undefined {
         const possible_worlds = get_possible_target_world2(nextWorld);
         for (const possible_world of possible_worlds) {
             const key = get_key2(possible_world);
-            if (already_explored.has(key)) {
-                continue;
-            }
             priorityQueue.put(possible_world, key);
         }
-        already_explored.set(nextWorldQueued?.key ?? "", true);
     }
     return undefined;
 }

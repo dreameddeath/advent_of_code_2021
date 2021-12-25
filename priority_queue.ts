@@ -13,12 +13,11 @@ interface QueueCostSlot<T> {
 export class PriorityQueue<T>{
     private readonly queue: QueueCostSlot<T>[] = [];
     private readonly existingItems: Map<string, number> = new Map()
-    
-    constructor(private getCost: (i: T) => number) {
+    constructor(private getCost: (i: T) => number,private readonly keep_processed_key:boolean=false) {
 
     }
 
-    public put(inputItem: T, key: string | undefined = undefined):QueuedItem<T>|undefined {
+    public put(inputItem: T, key: string | undefined = undefined):number|undefined {
         const cost = this.getCost(inputItem);
         if (key) {
             const prefered_duplicate = this.manage_duplicate(cost, key);
@@ -65,13 +64,13 @@ export class PriorityQueue<T>{
         }
     }
 
-    private manage_duplicate(cost: number, key: string): QueuedItem<T>|undefined {
+    private manage_duplicate(cost: number, key: string): number|undefined {
         const existingCost = this.existingItems.get(key);
         if (existingCost !== undefined) {
-            const [existing_slot_id, slot, existing_item_index, item] = this.get_existing_item_information(existingCost, key);
             if (existingCost <= cost) {
-                return item;
+                return existingCost;
             }
+            const [existing_slot_id, slot, existing_item_index, item] = this.get_existing_item_information(existingCost, key);
             if (item.key) {
                 this.existingItems.delete(item.key);
             }
@@ -104,7 +103,7 @@ export class PriorityQueue<T>{
                 throw "MAJOR FAILURE";
             }
         }
-        if (item.key) {
+        if (!this.keep_processed_key && item.key) {
             this.existingItems.delete(item.key);
         }
         return item;
