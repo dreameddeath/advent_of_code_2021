@@ -1,5 +1,5 @@
 import { assert } from "console";
-import { Part, run, Type } from "./day_utils"
+import { Part, run, Type } from "../day_utils"
 const testData = ``
 
 enum Operator {

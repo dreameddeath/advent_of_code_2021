@@ -1,5 +1,5 @@
-import { PriorityQueue } from "./priority_queue"
-import { generator, Part, run, Type } from "./day_utils"
+import { PriorityQueue } from "../priority_queue"
+import { generator, Part, run, Type } from "../day_utils"
 const testData = `#############
 #...........#
 ###B#C#B#D###
