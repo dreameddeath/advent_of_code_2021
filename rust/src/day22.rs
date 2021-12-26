@@ -1,8 +1,6 @@
 use crate::utils::Part;
 use regex::{Captures, Regex};
-use std::{
-    collections::BTreeSet, mem::size_of, ops::RangeInclusive, time::Instant,
-};
+use std::{collections::BTreeSet, mem::size_of, ops::RangeInclusive, time::Instant};
 
 struct Cuboid {
     x: RangeInclusive<i32>,
@@ -262,31 +260,193 @@ fn parse(lines: &Vec<String>) -> Result<Vec<Instruction>, ParsingError> {
         .collect();
 }
 
+fn intersect_segments(
+    first: &RangeInclusive<i32>,
+    second: &RangeInclusive<i32>,
+) -> Option<RangeInclusive<i32>> {
+    if first.start() > second.end() || second.start() > first.end() {
+        None
+    } else {
+        Some(RangeInclusive::new(
+            std::cmp::max(*first.start(), *second.start()),
+            std::cmp::min(*first.end(), *second.end()),
+        ))
+    }
+}
+
+fn intersect_cuboid(source_cuboid: &Cuboid, target: &Cuboid) -> Option<Cuboid> {
+    let intersect_x = intersect_segments(&source_cuboid.x, &target.x)?;
+    let intersect_y = intersect_segments(&source_cuboid.y, &target.y)?;
+    let intersect_z = intersect_segments(&source_cuboid.z, &target.z)?;
+    Some(Cuboid {
+        x: intersect_x,
+        y: intersect_y,
+        z: intersect_z,
+    })
+}
+
+fn find_intersecting_instructions(
+    instruction: &Instruction,
+    list: &Vec<Instruction>,
+) -> Vec<Instruction> {
+    return list
+        .iter()
+        .flat_map(|item| {
+            intersect_cuboid(&instruction.cuboid, &item.cuboid).map(|c| Instruction {
+                cuboid: c,
+                on: item.on,
+            })
+        })
+        .collect();
+}
+
+fn count_cells(c: &Cuboid) -> u64 {
+    (c.x.end() - c.x.start() + 1) as u64
+        * (c.y.end() - c.y.start() + 1) as u64
+        * (c.z.end() - c.z.start() + 1) as u64
+}
+
+static CUBOID_PART_1: Cuboid = Cuboid {
+    x: RangeInclusive::new(-50, 50),
+    y: RangeInclusive::new(-50, 50),
+    z: RangeInclusive::new(-50, 50),
+};
+
+fn apply_instruction(
+    engine_state: &mut State,
+    instruction: &Instruction,
+    is_part1: bool,
+) -> Option<()> {
+    let effective_cuboid = if is_part1 {
+        intersect_cuboid(&instruction.cuboid, &CUBOID_PART_1)?
+    } else {
+        Cuboid {
+            x: instruction.cuboid.x.clone(),
+            y: instruction.cuboid.y.clone(),
+            z: instruction.cuboid.z.clone(),
+        }
+    };
+    let effective_instruction = Instruction {
+        cuboid: effective_cuboid,
+        on: instruction.on,
+    };
+    let intersecting_past_instructions_with_overlappings = find_intersecting_instructions(
+        &effective_instruction,
+        &engine_state.already_managed_with_overlaps,
+    );
+    if instruction.on {
+        engine_state.counting += count_cells(&effective_instruction.cuboid);
+        for intersecting_past_instruction in intersecting_past_instructions_with_overlappings {
+            //Intersection with an on state ==> remove overflow
+            if intersecting_past_instruction.on {
+                engine_state.counting -= count_cells(&intersecting_past_instruction.cuboid);
+                //Keep track of overflow by keeping a negative
+                engine_state
+                    .already_managed_with_overlaps
+                    .push(Instruction {
+                        on: false,
+                        cuboid: intersecting_past_instruction.cuboid,
+                    })
+            }
+            //Intersection with an off state ==> add overflow
+            else {
+                engine_state.counting += count_cells(&intersecting_past_instruction.cuboid);
+                //Keep track
+                engine_state
+                    .already_managed_with_overlaps
+                    .push(Instruction {
+                        on: true,
+                        cuboid: intersecting_past_instruction.cuboid,
+                    })
+            }
+        }
+        engine_state
+            .already_managed_with_overlaps
+            .push(effective_instruction);
+    } else {
+        for intersecting_past_instruction in intersecting_past_instructions_with_overlappings {
+            if intersecting_past_instruction.on {
+                engine_state.counting -= count_cells(&intersecting_past_instruction.cuboid);
+                engine_state
+                    .already_managed_with_overlaps
+                    .push(Instruction {
+                        on: false,
+                        cuboid: intersecting_past_instruction.cuboid,
+                    })
+            } else {
+                engine_state.counting += count_cells(&intersecting_past_instruction.cuboid);
+                engine_state
+                    .already_managed_with_overlaps
+                    .push(Instruction {
+                        on: true,
+                        cuboid: intersecting_past_instruction.cuboid,
+                    })
+            }
+        }
+    }
+    Some(())
+}
+
+struct State {
+    already_managed_with_overlaps: Vec<Instruction>,
+    counting: u64,
+}
+
 pub fn puzzle(part: &Part, lines: &Vec<String>) {
     let instructions = parse(lines).unwrap();
     match part {
         Part::Part1 => {
             let mut grid =
                 AdaptativeGrid::new(&instructions.iter().map(|it| &it.cuboid).collect(), 50);
-            for instruction in instructions {
+            for instruction in &instructions {
                 grid.set(&instruction.cuboid, instruction.on);
             }
 
             let result = grid.count();
-            println!("Result Version {}", result)
+            println!("Result Version {}", result);
+
+            let mut state = State {
+                already_managed_with_overlaps: Vec::with_capacity(instructions.len() * 3),
+                counting: 0,
+            };
+            for instruction in instructions {
+                apply_instruction(&mut state, &instruction, true).unwrap_or(());
+            }
+            println!("Result Version iso TS: {}", state.counting);
         }
         Part::Part2 => {
             let mut grid = AdaptativeGrid::new(
                 &instructions.iter().map(|it| &it.cuboid).collect(),
                 i32::MAX - 1,
             );
-            for instruction in instructions {
+            for instruction in &instructions {
                 grid.set(&instruction.cuboid, instruction.on);
             }
             let start = Instant::now();
             let result = grid.count();
             let duration = start.elapsed().as_millis();
-            println!("Result Eval {}, counted in {} ms with memory of {} bytes", result, duration,grid.memory_estimate());
+            println!(
+                "Result Eval {}, counted in {} ms with memory of {} bytes",
+                result,
+                duration,
+                grid.memory_estimate()
+            );
+
+            let mut state = State {
+                already_managed_with_overlaps: Vec::with_capacity(instructions.len()),
+                counting: 0,
+            };
+            let start2 = Instant::now();
+
+            for instruction in instructions {
+                apply_instruction(&mut state, &instruction, false).unwrap_or(());
+            }
+            println!(
+                "Result Version iso TS: {} done in {} ms with memory {}",
+                state.counting,
+                start2.elapsed().as_millis(),
+                size_of::<Instruction>() * state.already_managed_with_overlaps.capacity()
+            );
         }
     }
 }
