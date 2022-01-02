@@ -84,6 +84,7 @@ function solve(init_world: World2): number | undefined {
             if (DEBUG) {
                 print_world_history(init_world, nextWorld.moves);
             }
+            console.log(`Noeuds traités ${priorityQueue.explored()}`)
             return nextWorld.cost;
         }
 
@@ -309,8 +310,8 @@ function update_finished_ref_if_applicable(world: World2, ref: CellRef) {
 }
 
 function calc_estimate_cost_to_end(world: World2, ref: CellRef): number {
-    //return 0;
-    const type = get_cell_value(world, ref);
+    return 0;
+    /*const type = get_cell_value(world, ref);
     if (type === undefined) {
         return 0;
     }
@@ -332,7 +333,7 @@ function calc_estimate_cost_to_end(world: World2, ref: CellRef): number {
         path_size += get_path(ref, { type: type, pos: 0 }).length
     }
 
-    return path_size * COSTS[type];
+    return path_size * COSTS[type];*/
 }
 
 function parse2(lines: string[], depth: number): World2 {

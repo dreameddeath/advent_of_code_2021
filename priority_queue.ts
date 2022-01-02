@@ -13,11 +13,11 @@ interface QueueCostSlot<T> {
 export class PriorityQueue<T>{
     private readonly queue: QueueCostSlot<T>[] = [];
     private readonly existingItems: Map<string, number> = new Map()
-    constructor(private getCost: (i: T) => number,private readonly keep_processed_key:boolean=false) {
+    constructor(private getCost: (i: T) => number, private readonly keep_processed_key: boolean = false) {
 
     }
 
-    public put(inputItem: T, key: string | undefined = undefined):number|undefined {
+    public put(inputItem: T, key: string | undefined = undefined): number | undefined {
         const cost = this.getCost(inputItem);
         if (key) {
             const prefered_duplicate = this.manage_duplicate(cost, key);
@@ -64,7 +64,7 @@ export class PriorityQueue<T>{
         }
     }
 
-    private manage_duplicate(cost: number, key: string): number|undefined {
+    private manage_duplicate(cost: number, key: string): number | undefined {
         const existingCost = this.existingItems.get(key);
         if (existingCost !== undefined) {
             if (existingCost <= cost) {
@@ -115,5 +115,9 @@ export class PriorityQueue<T>{
 
     public isEmpty(): boolean {
         return this.queue.length === 0
+    }
+
+    public explored(): number {
+        return this.existingItems.size
     }
 }
