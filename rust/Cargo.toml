@@ -5,6 +5,9 @@ edition="2021"
 
 [dependencies]
 regex = "1"
+hashbrown = "0.3"
+priority-queue = "1.2.1"
+
 
 [profile.release]
 debug = 1

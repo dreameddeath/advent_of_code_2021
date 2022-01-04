@@ -1,7 +1,10 @@
 use crate::utils::Part;
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
-use std::collections::HashSet;
+//use std::collections::HashSet;
+use hashbrown::HashSet;
+use priority_queue::PriorityQueue;
+use hashbrown::hash_map::DefaultHashBuilder;
 
 struct Map {
     lines: Vec<Vec<u8>>,
@@ -27,7 +30,19 @@ struct Pos {
     y: u16,
 }
 
-#[derive(Eq, PartialEq)]
+impl Ord for Pos {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.x.cmp(&other.x).then(self.y.cmp(&other.y))
+    }
+}
+
+impl PartialOrd for Pos {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+#[derive(Eq, PartialEq,Hash)]
 struct WeightedPos {
     pos: Pos,
     previous: Option<Pos>,
@@ -61,7 +76,7 @@ fn parse_line(line: &String) -> Option<Vec<u8>> {
 }
 
 fn to_lookup(node: &WeightedPos, map: &Map) -> Vec<WeightedPos> {
-    return vec![
+    return [
         if node.pos.x == 0 {
             None
         } else {
@@ -120,7 +135,9 @@ fn calc_estimated_total_cost(cost: &u16, pos: &Pos, map: &Map) -> u16 {
 }
 
 fn a_star_lookup(map: &Map) -> u16 {
-    let mut processed: HashSet<Pos> = HashSet::new();
+    //let mut processed: HashSet<Pos> = HashSet::new();
+    let mut processed = vec![false;(map.max_x as usize +1)*(map.max_y as usize +1)];
+    let calc_offset = |pos:&Pos| pos.x as usize + (pos.y as usize *(map.max_x as usize+1));
     let mut priority_queue: BinaryHeap<WeightedPos> = BinaryHeap::new();
     priority_queue.push(WeightedPos {
         pos: Pos { x: 0, y: 0 },
@@ -130,7 +147,8 @@ fn a_star_lookup(map: &Map) -> u16 {
     });
 
     while let Some(item) = priority_queue.pop() {
-        if processed.contains(&item.pos) {
+        let offset = calc_offset(&item.pos);
+        if processed[offset] {
             continue;
         }
         if item.pos.x == map.max_x && item.pos.y == map.max_y {
@@ -140,12 +158,12 @@ fn a_star_lookup(map: &Map) -> u16 {
 
         let mut new_nodes = to_lookup(&item, map);
         while let Some(new_node) = new_nodes.pop() {
-            if processed.contains(&new_node.pos) {
+            if processed[calc_offset(&new_node.pos)] { 
                 continue;
             }
             priority_queue.push(new_node);
         }
-        processed.insert(item.pos);
+        processed[offset]=true;
     }
     return 0;
 }

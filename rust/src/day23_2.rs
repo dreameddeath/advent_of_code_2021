@@ -1,7 +1,8 @@
 use crate::utils::Part;
 use regex::{Captures, Regex};
-use std::collections::{BinaryHeap, HashMap};
+use std::collections::{BinaryHeap};
 use std::fmt::Write;
+use hashbrown::HashMap;
 
 #[derive(PartialEq, Eq, Hash)]
 struct World {

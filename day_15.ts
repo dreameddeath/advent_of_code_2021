@@ -71,6 +71,7 @@ function lookup_min_path(caveMap: CaveMap): [number, Pos[]] {
             break;
         }
         if (nextNode.pos.x === caveMap.maxX && nextNode.pos.y === caveMap.maxY) {
+            console.log(`Node explored ${listToExplore.explored()}`)
             const path = []
             let currNode: WeightedPos | undefined = nextNode
             do {
